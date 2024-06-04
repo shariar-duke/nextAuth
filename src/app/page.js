@@ -2,7 +2,7 @@
 export default function Home() {
   return (
    <div>
-      Next Auth
+      Next Auth Learning
    </div>
   );
 }
