@@ -1,21 +1,51 @@
+import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { MongoDBAdapter } from "@auth/mongodb-adapter"; // eta k import kora holo
-import mongoClientPromise from "../lib/mongoClientPromise"; // eat k import kora holo 
+import CredentialsProvider from "next-auth/providers/credentials";
+import mongoClientPromise from "../lib/mongoClientPromise";
+import { dbConnect } from "../lib/mongo";
+import { userModel } from "../models/user.model";
 
 export const {
-  // egula jno api leve eo handle korte pare...
-  handlers:{GET, POST},
-  auth,
-  signIn, 
-  signOut
+    handlers: { GET, POST },
+    auth,
+    signIn,
+    signOut,
 } = NextAuth({
     adapter: MongoDBAdapter(mongoClientPromise, {databaseName: process.env.ENVIRONMENT}),
-    providers:[ GoogleProvider({
-        clientId : process.env.GOOGLE_CLIENT_ID,
-        clientSecret:process.env.GOOGLE_CLIENT_SECRET
-       })]
-   
-})
+    session: {
+      strategy: 'jwt',
+    },
+    providers: [
+        CredentialsProvider({
+          credentials: {
+            email: {},
+            password: {}
+          },
+          async authorize(credentials){
+            if(credentials === null) return null;
+            await dbConnect();
+            try {
+              const user = await userModel.findOne({email: credentials?.email});
+              if (user) {
+                const isMatch = user?.password === credentials.password;
 
-
+                if (isMatch) {
+                  return user;
+                } else {
+                  throw new Error("Email or Password is not correct");
+                }
+              } else {
+                throw new Error("User not found");
+              }
+            } catch (error) {
+              throw new Error(error);
+            }
+          }
+        }),
+        GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        }),
+    ],
+});
